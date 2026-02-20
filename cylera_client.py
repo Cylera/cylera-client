@@ -154,6 +154,30 @@ class CyleraClient:
         except RequestException as e:
             raise CyleraAuthError(f"Authentication request failed: {str(e)}")
 
+    def get_organization(self) -> Dict[str, Any]:
+        """
+        Get the current organization.
+
+        Returns the name of the organization associated with the API credentials
+        used to authenticate this request.
+
+        Returns:
+            Organization data
+        """
+        return self._make_request("GET", "/auth/organization")
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self.session.close()
+
+    def __enter__(self) -> "CyleraClient":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - closes the session."""
+        self.close()
+
     def _make_request(
         self,
         method: str,

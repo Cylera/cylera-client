@@ -7,6 +7,7 @@
 set -e
 
 USE_DOPPLER=false
+VERBOSE=false
 
 show_help() {
   cat <<EOF
@@ -15,12 +16,14 @@ Usage: $(basename "$0") [OPTIONS]
 Run all tests and quality checks for the Cylera Client.
 
 Options:
-    --use-doppler    Use Doppler secrets management 
+    --use-doppler    Use Doppler secrets management
+    --verbose        Show test output (passes -s to pytest)
     --help           Show this help message and exit.
 
 Examples:
     $(basename "$0")              # Run tests using local .env file
     $(basename "$0") --use-doppler # Run tests using Doppler secrets
+    $(basename "$0") --verbose     # Run tests with output shown
 EOF
 }
 
@@ -29,6 +32,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
   --use-doppler)
     USE_DOPPLER=true
+    shift
+    ;;
+  --verbose)
+    VERBOSE=true
     shift
     ;;
   --help)
@@ -43,6 +50,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+check_environment_variables() {
+  REQUIRED_VARS=(TEST_CYLERA_USERNAME TEST_CYLERA_PASSWORD TEST_CYLERA_BASE_URL)
+  missing=()
+  for var in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!var}" ]; then
+      missing+=("$var")
+    fi
+  done
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "Error: The following required environment variables are not set:"
+    for var in "${missing[@]}"; do
+      echo "  - $var"
+    done
+    exit 1
+  fi
+}
+
 # Check for doppler CLI if --use-doppler was specified
 if [ "$USE_DOPPLER" = true ]; then
   if ! doppler --version >/dev/null 2>&1; then
@@ -53,10 +77,14 @@ if [ "$USE_DOPPLER" = true ]; then
 fi
 
 run_pytest() {
+  PYTEST_ARGS=(-v)
+  if [ "$VERBOSE" = true ]; then
+    PYTEST_ARGS+=(-s)
+  fi
   if [ "$USE_DOPPLER" = true ]; then
-    doppler run -- uv run pytest -v || exit 1
+    doppler run -- uv run pytest "${PYTEST_ARGS[@]}" || exit 1
   else
-    uv run pytest -v || exit 1
+    uv run pytest "${PYTEST_ARGS[@]}" || exit 1
   fi
 }
 
@@ -77,9 +105,12 @@ check_app_security() {
 }
 
 check_software_supply_chain_security() {
-  uvx pip-audit
+  uv export --no-hashes | uvx --python 3.13 pip-audit -r /dev/stdin
 }
 
+if [ "$USE_DOPPLER" = false ]; then
+  check_environment_variables
+fi
 echo "******** Running pytest **********"
 run_pytest
 echo "******** Running ruff check (linter)  **********"

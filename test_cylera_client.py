@@ -34,6 +34,19 @@ def get_env_var(env_var_name: str):
     return str(value)
 
 
+class TestGetOrganization(unittest.TestCase):
+    def test_get_organization(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        result = client.get_organization()
+
+        log(json.dumps(result, indent=2))
+        self.assertIn("name", result)
+
+
 class TestGetDevice(unittest.TestCase):
     def test_get_device(self):
         mac_address = "7f:14:22:72:00:e5"

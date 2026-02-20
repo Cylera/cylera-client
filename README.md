@@ -28,6 +28,14 @@ client = CyleraClient(
 
 Authentication is handled automatically. Tokens are cached and refreshed before expiry.
 
+### Auth
+
+```python
+# Get the organization associated with your API credentials
+org = client.get_organization()
+# {"organization_id": 17, "name": "Cylera", "internal_name": "cylera"}
+```
+
 ### Inventory
 
 ```python
@@ -126,6 +134,11 @@ Or with [Doppler](https://docs.doppler.com/docs/install-cli) for secrets managem
 
 ```bash
 ./test.sh --use-doppler
+```
+
+Or, if you want to see log messages during the test run:
+```bash
+./test.sh --use-doppler --verbose
 ```
 
 To run pytest only:
