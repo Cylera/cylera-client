@@ -1,6 +1,6 @@
 [project]
 name = "cylera-client"
-version = "0.3.0"
+version = "1.0.0"
 description = "Python client for the Cylera Partner API"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
