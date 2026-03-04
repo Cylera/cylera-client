@@ -164,7 +164,40 @@ class CyleraClient:
         Returns:
             Organization data
         """
-        return self._make_request("GET", "/auth/organization")
+        return self._make_request("GET", "/organization/")
+
+    def get_available_organizations(self) -> List[Dict[str, Any]]:
+        """
+        Get organizations available to switch into.
+
+        Returns:
+            List of organization objects with 'id' and 'name' fields
+        """
+        return self._make_request("GET", "/organization/available")
+
+    def switch_organization(self, organization_id: str) -> Dict[str, Any]:
+        """
+        Switch to a different organization.
+
+        After a successful switch the current token is invalidated. The next
+        API call will automatically re-authenticate.
+
+        Args:
+            organization_id: Organization ID from get_available_organizations()
+
+        Returns:
+            Response data confirming the switch
+
+        Raises:
+            CyleraAuthError: If not authorized to switch to the organization
+        """
+        result = self._make_request(
+            "POST", "/organization/switch", params={"id": organization_id}
+        )
+        # Token is invalidated server-side; clear it so next request re-authenticates
+        self._token = None
+        self._token_expiry = None
+        return result
 
     def close(self) -> None:
         """Close the underlying HTTP session."""

@@ -47,6 +47,60 @@ class TestGetOrganization(unittest.TestCase):
         self.assertIn("name", result)
 
 
+class TestGetAvailableOrganizations(unittest.TestCase):
+    def test_get_available_organizations(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        result = client.get_available_organizations()
+
+        log(json.dumps(result, indent=2))
+        self.assertIsInstance(result, list)
+        for org in result:
+            self.assertIn("id", org)
+            self.assertIn("name", org)
+
+
+class TestSwitchOrganization(unittest.TestCase):
+    def test_switch_organization(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+
+        current_org = client.get_organization()
+        available = client.get_available_organizations()
+        other_orgs = [o for o in available if o["name"] != current_org["name"]]
+
+        if not other_orgs:
+            self.skipTest("No other organizations available to switch into")
+
+        target = other_orgs[0]
+        result = client.switch_organization(target["id"])
+        log(json.dumps(result, indent=2))
+
+        # Token should be cleared after switch
+        self.assertIsNone(client._token)
+
+        # Verify we are now in the target org (re-authenticates automatically)
+        new_org = client.get_organization()
+        self.assertEqual(new_org["name"], target["name"])
+
+        # Switch back to the original org
+        available_again = client.get_available_organizations()
+        original = next((o for o in available_again if o["name"] == current_org["name"]), None)
+        if original is None:
+            self.fail("Could not find original org to switch back")
+            return
+        client.switch_organization(original["id"])
+
+        restored_org = client.get_organization()
+        self.assertEqual(restored_org["name"], current_org["name"])
+
+
 class TestGetDevice(unittest.TestCase):
     def test_get_device(self):
         mac_address = "7f:14:22:72:00:e5"
