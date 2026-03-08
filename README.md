@@ -1,6 +1,6 @@
 # cylera-client
 
-A Python client for the [Cylera Partner API](https://partner.us1.cylera.com/apidocs/).
+A Python client for the [Cylera Partner API](https://github.com/Cylera/cylera-partner-api)
 
 ## Installation
 
