@@ -26,7 +26,7 @@ Follow [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 Ensure all checks pass before publishing:
 
 ```bash
-./test.sh
+./test.sh --use-op
 ```
 
 ### 3. Build the package
@@ -42,10 +42,10 @@ This produces two artifacts in `dist/`:
 
 ### 4. Publish to PyPI
 
-The PyPi API token is required to publish. This secret, with a key "UV_PUBLISH_TOKEN"  is managed in Doppler. 
+The PyPi API token is required to publish. This secret, with a key "UV_PUBLISH_TOKEN"  is managed in 1Password. 
 
 ```bash
-doppler run -- uv publish
+op run --environment "$OP_ENVIRONMENT_ID" -- uv publish
 ```
 
 ### 5. Verify the release

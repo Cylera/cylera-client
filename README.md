@@ -17,7 +17,7 @@ uv add cylera-client
 ## Usage
 
 ```python
-from cylera_client import CyleraClient, Inventory, Utilization, Network, Risk, Threat
+from cylera_client import CyleraClient, Organization, Inventory, Utilization, Network, Risk, Threat
 
 client = CyleraClient(
     username="you@example.com",
@@ -28,12 +28,29 @@ client = CyleraClient(
 
 Authentication is handled automatically. Tokens are cached and refreshed before expiry.
 
-### Auth
+### Organization
 
 ```python
+organization = Organization(client)
+
 # Get the organization associated with your API credentials
-org = client.get_organization()
+org = organization.get_organization()
 # {"organization_id": 17, "name": "Cylera", "internal_name": "cylera"}
+
+# List organizations available to switch into
+available = organization.get_available_organizations()
+
+# Switch into a different organization (token is invalidated after switch)
+# Note that switch_organization is handled asynchronously
+# So, whenever you switch, it is wise to sleep for a few seconds to give
+# the back-end time to process the reset request.
+organization.switch_organization(available[0]["id"])
+
+# Reset back to your home organization
+# Note that reset_organization is handled asynchronously
+# So, whenever you reset, it is wise to sleep for a few seconds to give
+# the back-end time to process the reset request.
+organization.reset_organization()
 ```
 
 ### Inventory
@@ -101,61 +118,3 @@ threats = threat.get_threats(severity="HIGH", status="OPEN", page=0, page_size=5
 
 Set `DEBUG=1` to print request details to stderr (authorization headers are redacted):
 
-```bash
-DEBUG=1 python your_script.py
-```
-
-## Development
-
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
-
-```bash
-# Install dependencies
-uv sync --group dev
-```
-
-### Running tests
-
-Tests run against the Cylera demo environment. Set the required environment variables first:
-
-```bash
-export TEST_CYLERA_USERNAME="you@example.com"
-export TEST_CYLERA_PASSWORD="your-password"
-export TEST_CYLERA_BASE_URL="https://partner.demo.cylera.com/"
-```
-
-Then run the full test suite (pytest, linting, type checking, security scanning):
-
-```bash
-./test.sh
-```
-
-Or with [Doppler](https://docs.doppler.com/docs/install-cli) for secrets management:
-
-```bash
-./test.sh --use-doppler
-```
-
-Or, if you want to see log messages during the test run:
-```bash
-./test.sh --use-doppler --verbose
-```
-
-To run pytest only:
-
-```bash
-uv run pytest -v
-```
-
-### Quality checks
-
-The `test.sh` script runs these checks in order:
-
-| Tool | Purpose |
-|------|---------|
-| `pytest` | Tests |
-| `ruff` | Linting |
-| `pyright` | Type checking |
-| `shellcheck` | Shell script linting |
-| `bandit` | Python security scanning |
-| `pip-audit` | Dependency vulnerability scanning |

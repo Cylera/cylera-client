@@ -154,51 +154,6 @@ class CyleraClient:
         except RequestException as e:
             raise CyleraAuthError(f"Authentication request failed: {str(e)}")
 
-    def get_organization(self) -> Dict[str, Any]:
-        """
-        Get the current organization.
-
-        Returns the name of the organization associated with the API credentials
-        used to authenticate this request.
-
-        Returns:
-            Organization data
-        """
-        return self._make_request("GET", "/organization/")
-
-    def get_available_organizations(self) -> List[Dict[str, Any]]:
-        """
-        Get organizations available to switch into.
-
-        Returns:
-            List of organization objects with 'id' and 'name' fields
-        """
-        return self._make_request("GET", "/organization/available")
-
-    def switch_organization(self, organization_id: str) -> Dict[str, Any]:
-        """
-        Switch to a different organization.
-
-        After a successful switch the current token is invalidated. The next
-        API call will automatically re-authenticate.
-
-        Args:
-            organization_id: Organization ID from get_available_organizations()
-
-        Returns:
-            Response data confirming the switch
-
-        Raises:
-            CyleraAuthError: If not authorized to switch to the organization
-        """
-        result = self._make_request(
-            "POST", "/organization/switch", params={"id": organization_id}
-        )
-        # Token is invalidated server-side; clear it so next request re-authenticates
-        self._token = None
-        self._token_expiry = None
-        return result
-
     def close(self) -> None:
         """Close the underlying HTTP session."""
         self.session.close()
@@ -274,6 +229,80 @@ class CyleraClient:
             )
         except RequestException as e:
             raise CyleraAPIError(f"Request failed: {str(e)}")
+
+
+class Organization:
+    """
+    Helper class for organization-related endpoints using composition with
+    CyleraClient.
+    """
+
+    def __init__(self, client: CyleraClient):
+        self.client = client
+
+    def get_organization(self) -> Dict[str, Any]:
+        """
+        Get the current organization.
+
+        Returns the name of the organization associated with the API credentials
+        used to authenticate this request.
+
+        Returns:
+            Organization data
+        """
+        return self.client._make_request("GET", "/organization/")
+
+    def get_available_organizations(self) -> List[Dict[str, Any]]:
+        """
+        Get organizations available to switch into.
+
+        Returns:
+            List of organization objects with 'id' and 'name' fields
+        """
+        return self.client._make_request("GET", "/organization/available")
+
+    def switch_organization(self, organization_id: str) -> Dict[str, Any]:
+        """
+        Switch to a different organization.
+
+        After a successful switch the current token is invalidated. The next
+        API call will automatically re-authenticate.
+
+        Args:
+            organization_id: Organization ID from get_available_organizations()
+
+        Returns:
+            Response data confirming the switch
+
+        Raises:
+            CyleraAuthError: If not authorized to switch to the organization
+        """
+        result = self.client._make_request(
+            "POST", "/organization/switch", params={"id": organization_id}
+        )
+        # Token is invalidated server-side; clear it so next request re-authenticates
+        self.client._token = None
+        self.client._token_expiry = None
+        return result
+
+    def reset_organization(self) -> Dict[str, Any]:
+        """
+        Reset organization to home.
+
+        Resets the authenticated user back to their home organization. This is the
+        inverse of switch_organization(). If already in the home organization,
+        the request is a no-op.
+
+        After a successful reset the current token is invalidated. The next
+        API call will automatically re-authenticate.
+
+        Returns:
+            Response data confirming the reset
+        """
+        result = self.client._make_request("POST", "/organization/reset")
+        self.client._token = None
+        self.client._token_expiry = None
+        return result
 
 
 class Inventory:

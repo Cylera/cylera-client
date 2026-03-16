@@ -6,10 +6,11 @@
 
 from sys import stderr
 import os
+import time
 import unittest
 import json
 import sys
-from cylera_client import CyleraClient, Inventory, Utilization, Network, Risk, Threat
+from cylera_client import CyleraClient, Organization, Inventory, Utilization, Network, Risk, Threat
 
 # Check if verbose flag is present
 VERBOSE = "-v" in sys.argv or "--verbose" in sys.argv
@@ -25,9 +26,7 @@ def get_env_var(env_var_name: str):
     value = os.environ.get(env_var_name)
     if not value:
         print(
-            f"Error: Required environment variable '{
-                env_var_name
-            }' is not set or is empty",
+            f"Error: Required environment variable '{env_var_name}' is not set or is empty",
             file=stderr,
         )
         exit(1)
@@ -41,7 +40,8 @@ class TestGetOrganization(unittest.TestCase):
             password=get_env_var("TEST_CYLERA_PASSWORD"),
             base_url=get_env_var("TEST_CYLERA_BASE_URL"),
         )
-        result = client.get_organization()
+        organization = Organization(client)
+        result = organization.get_organization()
 
         log(json.dumps(result, indent=2))
         self.assertIn("name", result)
@@ -54,7 +54,8 @@ class TestGetAvailableOrganizations(unittest.TestCase):
             password=get_env_var("TEST_CYLERA_PASSWORD"),
             base_url=get_env_var("TEST_CYLERA_BASE_URL"),
         )
-        result = client.get_available_organizations()
+        organization = Organization(client)
+        result = organization.get_available_organizations()
 
         log(json.dumps(result, indent=2))
         self.assertIsInstance(result, list)
@@ -64,41 +65,37 @@ class TestGetAvailableOrganizations(unittest.TestCase):
 
 
 class TestSwitchOrganization(unittest.TestCase):
-    def test_switch_organization(self):
+    def test_switch_and_reset_organization(self):
         client = CyleraClient(
-            username=get_env_var("TEST_CYLERA_USERNAME"),
-            password=get_env_var("TEST_CYLERA_PASSWORD"),
-            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+            username=get_env_var("TEST_SWITCH_CYLERA_USERNAME"),
+            password=get_env_var("TEST_SWITCH_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_SWITCH_CYLERA_BASE_URL"),
         )
+        organization = Organization(client)
 
-        current_org = client.get_organization()
-        available = client.get_available_organizations()
+        current_org = organization.get_organization()
+        available = organization.get_available_organizations()
         other_orgs = [o for o in available if o["name"] != current_org["name"]]
-
         if not other_orgs:
             self.skipTest("No other organizations available to switch into")
 
         target = other_orgs[0]
-        result = client.switch_organization(target["id"])
+        result = organization.switch_organization(target["id"])
         log(json.dumps(result, indent=2))
+        time.sleep(15)  # switch is processed asynchronously
 
         # Token should be cleared after switch
         self.assertIsNone(client._token)
 
         # Verify we are now in the target org (re-authenticates automatically)
-        new_org = client.get_organization()
+        new_org = organization.get_organization()
         self.assertEqual(new_org["name"], target["name"])
 
         # Switch back to the original org
-        available_again = client.get_available_organizations()
-        original = next((o for o in available_again if o["name"] == current_org["name"]), None)
-        if original is None:
-            self.fail("Could not find original org to switch back")
-            return
-        client.switch_organization(original["id"])
-
-        restored_org = client.get_organization()
-        self.assertEqual(restored_org["name"], current_org["name"])
+        result = organization.reset_organization()
+        time.sleep(15)  # reset is processed asynchronously
+        current_org2 = organization.get_organization()
+        self.assertEqual(current_org,current_org2)
 
 
 class TestGetDevice(unittest.TestCase):
@@ -145,9 +142,7 @@ class TestGetProcedures(unittest.TestCase):
             self.assertEqual(
                 procedure["device_uuid"],
                 "ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
-                f"Procedure {
-                    procedure.get('device_uuid', 'unknown')
-                } should be ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
+                f"Procedure {procedure.get('device_uuid', 'unknown')} should be ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
             )
 
         # Get second page
@@ -168,9 +163,7 @@ class TestGetProcedures(unittest.TestCase):
             self.assertEqual(
                 procedure["device_uuid"],
                 "ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
-                f"Procedure {
-                    procedure.get('device_uuid', 'unknown')
-                } should be ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
+                f"Procedure {procedure.get('device_uuid', 'unknown')} should be ffc20dfe-4c24-11ec-8a38-5eeeaabea551",
             )
 
         # Verify no duplicate records between pages (using start)
@@ -225,9 +218,7 @@ class TestGetDevices(unittest.TestCase):
             self.assertEqual(
                 device["model"],
                 "Panasonic IP Camera",
-                f"Device {
-                    device.get('model', 'unknown')
-                } should be a Panasonic IP Camera",
+                f"Device {device.get('model', 'unknown')} should be a Panasonic IP Camera",
             )
 
         # Get second page
@@ -243,9 +234,7 @@ class TestGetDevices(unittest.TestCase):
             self.assertEqual(
                 device["model"],
                 "Panasonic IP Camera",
-                f"Device {
-                    device.get('model', 'unknown')
-                } should be a Panasonic IP Camera",
+                f"Device {device.get('model', 'unknown')} should be a Panasonic IP Camera",
             )
 
         # Verify no duplicate records between pages (using uuid)
@@ -316,9 +305,7 @@ class TestGetVulnerabilities(unittest.TestCase):
             self.assertEqual(
                 vuln["severity"],
                 "Critical",
-                f"Vulnerability {
-                    vuln.get('name', 'unknown')
-                } should have Critical severity",
+                f"Vulnerability {vuln.get('name', 'unknown')} should have Critical severity",
             )
 
         # Get second page
@@ -337,9 +324,7 @@ class TestGetVulnerabilities(unittest.TestCase):
             self.assertEqual(
                 vuln["severity"],
                 "Critical",
-                f"Vulnerability {
-                    vuln.get('name', 'unknown')
-                } should have Critical severity",
+                f"Vulnerability {vuln.get('name', 'unknown')} should have Critical severity",
             )
 
         # Verify no duplicate records between pages (using uuid)
@@ -378,8 +363,7 @@ class TestThreats(unittest.TestCase):
             self.assertEqual(
                 t["severity"],
                 "Medium",
-                f"Threat {t.get('name', 'unknown')
-                          } should have Medium severity",
+                f"Threat {t.get('name', 'unknown')} should have Medium severity",
             )
 
         # Get second page
@@ -396,8 +380,7 @@ class TestThreats(unittest.TestCase):
             self.assertEqual(
                 t["severity"],
                 "Medium",
-                f"Threat {t.get('name', 'unknown')
-                          } should have Medium severity",
+                f"Threat {t.get('name', 'unknown')} should have Medium severity",
             )
         #
         # Verify no duplicate records between pages (using uuid)
