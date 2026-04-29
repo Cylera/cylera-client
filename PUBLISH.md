@@ -58,6 +58,12 @@ uv add cylera-client
 uv run python -c "import cylera_client; print('ok')"
 ```
 
+### 6. Commit and push to Github and create release
+
+We need to ensure to keep the releaes in PyPi we create in sync with the releases in Github.
+
+Commit and push the changes for the new release to Github, draft a new release that matches the release version in PyPI. Tag the version as the latest release.
+
 ## TestPyPI (optional)
 
 To do a dry run against TestPyPI first:
@@ -80,3 +86,6 @@ pip install --index-url https://test.pypi.org/simple/ cylera-client
 - [ ] `dist/` artifacts built with `uv build`
 - [ ] Published with `uv publish`
 - [ ] Release verified by installing from PyPI
+- [ ] Commit changes and push to Github for the release
+- [ ] Draft a new release in GitHub that matches the PyPI release - tag the version as the latest version
+
