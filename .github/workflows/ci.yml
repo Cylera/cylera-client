@@ -10,6 +10,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run ruff
+        run: uvx ruff check .
+
   test:
     runs-on: ubuntu-latest
 
@@ -37,4 +52,4 @@ jobs:
           TEST_SWITCH_CYLERA_BASE_URL: ${{ secrets.TEST_SWITCH_CYLERA_BASE_URL }}
           TEST_SWITCH_CYLERA_USERNAME: ${{ secrets.TEST_SWITCH_CYLERA_USERNAME }}
           TEST_SWITCH_CYLERA_PASSWORD: ${{ secrets.TEST_SWITCH_CYLERA_PASSWORD }}
-          
+
