@@ -40,6 +40,16 @@ jobs:
       - name: Run ruff
         run: uvx ruff check .
 
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        run: find . -type f -name "*.sh" -exec shellcheck {} +
+
   test:
     runs-on: ubuntu-latest
 
