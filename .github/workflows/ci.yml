@@ -65,6 +65,21 @@ jobs:
       - name: Run bandit
         run: uvx bandit -c bandit.yaml ./*.py
 
+  pipaudit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run pip-audit
+        run: uv export --no-hashes | uvx --python 3.13 pip-audit -r /dev/stdin
+
   test:
     runs-on: ubuntu-latest
 
