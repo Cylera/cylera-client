@@ -50,6 +50,21 @@ jobs:
       - name: Run ShellCheck
         run: find . -type f -name "*.sh" -exec shellcheck {} +
 
+  securitycheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run bandit
+        run: uvx bandit -c bandit.yaml ./*.py
+
   test:
     runs-on: ubuntu-latest
 
