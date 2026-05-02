@@ -83,12 +83,10 @@ version_gte() {
 }
 
 # Check for doppler CLI if --use-doppler was specified
-if [[ "$USE_DOPPLER" = true ]]; then
-  if ! doppler --version >/dev/null 2>&1; then
-    echo "Error: Doppler CLI is not installed or not in PATH." >&2
-    echo "Please install Doppler CLI: https://docs.doppler.com/docs/install-cli" >&2
-    exit 1
-  fi
+if [[ "$USE_DOPPLER" = true ]] && ! doppler --version >/dev/null 2>&1; then
+  echo "Error: Doppler CLI is not installed or not in PATH." >&2
+  echo "Please install Doppler CLI: https://docs.doppler.com/docs/install-cli" >&2
+  exit 1
 fi
 
 # Check for 1Password CLI if --use-op was specified
