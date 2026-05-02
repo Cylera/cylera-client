@@ -51,8 +51,8 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   *)
-    echo "Unknown option: $1"
-    echo "Use --help for usage information."
+    echo "Unknown option: $1" >&2
+    echo "Use --help for usage information." >&2
     exit 1
     ;;
   esac
@@ -67,9 +67,9 @@ check_environment_variables() {
     fi
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "Error: The following required environment variables are not set:"
+    echo "Error: The following required environment variables are not set:" >&2
     for var in "${missing[@]}"; do
-      echo "  - $var"
+      echo "  - $var" >&2
     done
     exit 1
   fi
@@ -83,8 +83,8 @@ version_gte() {
 # Check for doppler CLI if --use-doppler was specified
 if [[ "$USE_DOPPLER" = true ]]; then
   if ! doppler --version >/dev/null 2>&1; then
-    echo "Error: Doppler CLI is not installed or not in PATH."
-    echo "Please install Doppler CLI: https://docs.doppler.com/docs/install-cli"
+    echo "Error: Doppler CLI is not installed or not in PATH." >&2
+    echo "Please install Doppler CLI: https://docs.doppler.com/docs/install-cli" >&2
     exit 1
   fi
 fi
@@ -92,22 +92,21 @@ fi
 # Check for 1Password CLI if --use-op was specified
 if [[ "$USE_OP" = true ]]; then
   if ! op --version >/dev/null 2>&1; then
-    echo "Error: 1Password CLI (op) is not installed or not in PATH."
-    echo "Please install 1Password CLI: https://developer.1password.com/docs/cli/get-started/"
+    echo "Error: 1Password CLI (op) is not installed or not in PATH." >&2
+    echo "Please install 1Password CLI: https://developer.1password.com/docs/cli/get-started/" >&2
     exit 1
   fi
   installed_op_version=$(op --version)
   if ! version_gte "$installed_op_version" "$MIN_OP_VERSION"; then
-    echo "Error: 1Password CLI version $installed_op_version is too old."
-    echo "Please upgrade to version $MIN_OP_VERSION or later."
+    echo "Error: 1Password CLI version $installed_op_version is too old." >&2
+    echo "Please upgrade to version $MIN_OP_VERSION or later." >&2
     exit 1
   fi
   if [[ -z "$OP_ENVIRONMENT_ID" ]]; then
-    echo "Error: OP_ENVIRONMENT_ID environment variable must be set when using --use-op."
+    echo "Error: OP_ENVIRONMENT_ID environment variable must be set when using --use-op." >&2
     exit 1
   fi
 fi
-
 
 run_pytest() {
   PYTEST_ARGS=(-v)
