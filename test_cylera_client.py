@@ -93,6 +93,7 @@ class TestSwitchOrganization(unittest.TestCase):
 
         # Switch back to the original org
         result = organization.reset_organization()
+        log(json.dumps(result, indent=2))
         time.sleep(15)  # reset is processed asynchronously
         current_org2 = organization.get_organization()
         self.assertEqual(current_org,current_org2)
