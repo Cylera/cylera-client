@@ -77,7 +77,9 @@ check_environment_variables() {
 
 version_gte() {
   # Returns 0 if $1 >= $2 using version sort
-  printf '%s\n%s\n' "$2" "$1" | sort -V -C
+  local version1="$1"
+  local version2="$2"
+  printf '%s\n%s\n' "$version2" "$version1" | sort -V -C
 }
 
 # Check for doppler CLI if --use-doppler was specified
