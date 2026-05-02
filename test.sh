@@ -62,11 +62,11 @@ check_environment_variables() {
   REQUIRED_VARS=(TEST_CYLERA_USERNAME TEST_CYLERA_PASSWORD TEST_CYLERA_BASE_URL)
   missing=()
   for var in "${REQUIRED_VARS[@]}"; do
-    if [ -z "${!var}" ]; then
+    if [[ -z "${!var}" ]]; then
       missing+=("$var")
     fi
   done
-  if [ ${#missing[@]} -gt 0 ]; then
+  if [[ ${#missing[@]} -gt 0 ]]; then
     echo "Error: The following required environment variables are not set:"
     for var in "${missing[@]}"; do
       echo "  - $var"
@@ -81,7 +81,7 @@ version_gte() {
 }
 
 # Check for doppler CLI if --use-doppler was specified
-if [ "$USE_DOPPLER" = true ]; then
+if [[ "$USE_DOPPLER" = true ]]; then
   if ! doppler --version >/dev/null 2>&1; then
     echo "Error: Doppler CLI is not installed or not in PATH."
     echo "Please install Doppler CLI: https://docs.doppler.com/docs/install-cli"
@@ -90,7 +90,7 @@ if [ "$USE_DOPPLER" = true ]; then
 fi
 
 # Check for 1Password CLI if --use-op was specified
-if [ "$USE_OP" = true ]; then
+if [[ "$USE_OP" = true ]]; then
   if ! op --version >/dev/null 2>&1; then
     echo "Error: 1Password CLI (op) is not installed or not in PATH."
     echo "Please install 1Password CLI: https://developer.1password.com/docs/cli/get-started/"
@@ -102,7 +102,7 @@ if [ "$USE_OP" = true ]; then
     echo "Please upgrade to version $MIN_OP_VERSION or later."
     exit 1
   fi
-  if [ -z "$OP_ENVIRONMENT_ID" ]; then
+  if [[ -z "$OP_ENVIRONMENT_ID" ]]; then
     echo "Error: OP_ENVIRONMENT_ID environment variable must be set when using --use-op."
     exit 1
   fi
@@ -111,12 +111,12 @@ fi
 
 run_pytest() {
   PYTEST_ARGS=(-v)
-  if [ "$VERBOSE" = true ]; then
+  if [[ "$VERBOSE" = true ]]; then
     PYTEST_ARGS+=(-s)
   fi
-  if [ "$USE_DOPPLER" = true ]; then
+  if [[ "$USE_DOPPLER" = true ]]; then
     doppler run -- uv run pytest "${PYTEST_ARGS[@]}" || exit 1
-  elif [ "$USE_OP" = true ]; then
+  elif [[ "$USE_OP" = true ]]; then
     op run --environment "$OP_ENVIRONMENT_ID" -- uv run pytest "${PYTEST_ARGS[@]}" || exit 1
   else
     uv run pytest "${PYTEST_ARGS[@]}" || exit 1
@@ -143,7 +143,7 @@ check_software_supply_chain_security() {
   uv export --no-hashes | uvx --python 3.13 pip-audit -r /dev/stdin
 }
 
-if [ "$USE_DOPPLER" = false ] && [ "$USE_OP" = false ]; then
+if [[ "$USE_DOPPLER" = false ]] && [[ "$USE_OP" = false ]]; then
   check_environment_variables
 fi
 echo "******** Running pytest **********"
