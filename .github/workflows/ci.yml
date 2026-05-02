@@ -9,6 +9,11 @@ on:
       - main
   workflow_dispatch:
 
+
+# Restrict default token permissions across all jobs
+permissions:
+  contents: read
+
 jobs:
   checktypes:
     runs-on: ubuntu-latest
