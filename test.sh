@@ -127,7 +127,7 @@ lint_python() {
 }
 
 check_types() {
-  uvx pyright . || exit 1
+  uvx --no-build pyright==1.1.409 . || exit 1
 }
 
 lint_shellscripts() {
@@ -135,11 +135,11 @@ lint_shellscripts() {
 }
 
 check_app_security() {
-  uvx bandit -c bandit.yaml ./*.py
+  uvx --no-build bandit==1.9.4 -c bandit.yaml ./*.py
 }
 
 check_software_supply_chain_security() {
-  uv export --no-hashes | uvx --python 3.13 pip-audit -r /dev/stdin
+  uv export --no-hashes | uvx --no-build --python 3.13 pip-audit==2.10.0 -r /dev/stdin
 }
 
 if [[ "$USE_DOPPLER" = false ]] && [[ "$USE_OP" = false ]]; then
