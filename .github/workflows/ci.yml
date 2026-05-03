@@ -40,7 +40,7 @@ jobs:
           enable-cache: true
 
       - name: Run pyright
-        run: uvx pyright
+        run: uvx --no-build pyright
 
   lint:
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
           enable-cache: true
 
       - name: Run ruff
-        run: uvx ruff check .
+        run: uvx --no-build ruff check .
 
   shellcheck:
     runs-on: ubuntu-latest
@@ -80,7 +80,7 @@ jobs:
           enable-cache: true
 
       - name: Run bandit
-        run: uvx bandit -c bandit.yaml ./*.py
+        run: uvx --no-build bandit -c bandit.yaml ./*.py
 
   pipaudit:
     runs-on: ubuntu-latest
@@ -95,7 +95,7 @@ jobs:
           enable-cache: true
 
       - name: Run pip-audit
-        run: uv export --no-hashes | uvx --python 3.13 pip-audit -r /dev/stdin
+        run: uv export --no-hashes | uvx --no-build --python 3.13 pip-audit -r /dev/stdin
 
   test:
     runs-on: ubuntu-latest
