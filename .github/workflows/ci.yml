@@ -95,7 +95,7 @@ jobs:
           enable-cache: true
 
       - name: Run pip-audit
-        run: uv export --no-hashes | uvx --no-build --python 3.13 pip-audit -r /dev/stdin
+        run: uv export --no-hashes | uvx --no-build --python 3.13 pip-audit==2.10.0 -r /dev/stdin
 
   test:
     runs-on: ubuntu-latest
