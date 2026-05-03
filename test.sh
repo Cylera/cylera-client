@@ -123,7 +123,7 @@ run_pytest() {
 }
 
 lint_python() {
-  uvx ruff check || exit 1
+  uvx --no-build ruff==0.15.12 check . || exit 1
 }
 
 check_types() {
