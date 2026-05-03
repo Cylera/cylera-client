@@ -55,7 +55,7 @@ jobs:
           enable-cache: true
 
       - name: Run ruff
-        run: uvx --no-build ruff check .
+        run: uvx --no-build ruff==0.15.12 check .
 
   shellcheck:
     runs-on: ubuntu-latest
