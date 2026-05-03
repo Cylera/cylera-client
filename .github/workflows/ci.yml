@@ -40,7 +40,7 @@ jobs:
           enable-cache: true
 
       - name: Run pyright
-        run: uvx --no-build pyright
+        run: uvx --no-build pyright@63998f4d0720a86447f4c4a04716e34f3e703660 # v1.1.409
 
   lint:
     runs-on: ubuntu-latest
