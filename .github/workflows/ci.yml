@@ -80,7 +80,7 @@ jobs:
           enable-cache: true
 
       - name: Run bandit
-        run: uvx --no-build bandit -c bandit.yaml ./*.py
+        run: uvx --no-build bandit==1.9.4 -c bandit.yaml ./*.py
 
   pipaudit:
     runs-on: ubuntu-latest
