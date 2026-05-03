@@ -116,7 +116,7 @@ jobs:
         run: uv sync --no-build --locked --all-extras --dev
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --no-build pytest
         env:
           TEST_CYLERA_BASE_URL: ${{ secrets.TEST_CYLERA_BASE_URL }}
           TEST_CYLERA_USERNAME: ${{ secrets.TEST_CYLERA_USERNAME }}
