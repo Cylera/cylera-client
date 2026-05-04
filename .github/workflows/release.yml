@@ -197,7 +197,8 @@ jobs:
           sleep 30
           for i in $(seq 1 10); do
             echo "Attempt $i: installing cylera-client==$INPUT_VERSION from TestPyPI..."
-            if uv run --refresh --with "cylera-client==$INPUT_VERSION" --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match --no-project python -c "import cylera_client; print('ok')"; then # NOSONAR
+            uv run --refresh --with "cylera-client==$INPUT_VERSION" --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match --no-project python -c "import cylera_client; print('ok')" # NOSONAR
+            if [ $? -eq 0 ]; then
               echo "Verification successful."
               exit 0
             fi
