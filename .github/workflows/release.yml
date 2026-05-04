@@ -25,30 +25,35 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Check version not already published
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            PYPI_URL="https://test.pypi.org/pypi/cylera-client/${{ inputs.version }}/json"
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            PYPI_URL="https://test.pypi.org/pypi/cylera-client/$INPUT_VERSION/json"
             REGISTRY="TestPyPI"
           else
-            PYPI_URL="https://pypi.org/pypi/cylera-client/${{ inputs.version }}/json"
+            PYPI_URL="https://pypi.org/pypi/cylera-client/$INPUT_VERSION/json"
             REGISTRY="PyPI"
           fi
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PYPI_URL")
           if [ "$STATUS" = "200" ]; then
-            echo "Error: Version ${{ inputs.version }} already exists on $REGISTRY. Bump the version in pyproject.toml first."
+            echo "Error: Version $INPUT_VERSION already exists on $REGISTRY. Bump the version in pyproject.toml first."
             exit 1
           fi
-          echo "Version ${{ inputs.version }} is not yet on $REGISTRY. Proceeding."
+          echo "Version $INPUT_VERSION is not yet on $REGISTRY. Proceeding."
 
       - name: Check pyproject.toml version matches input
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           PYPROJECT_VERSION=$(grep '^version' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          if [ "$PYPROJECT_VERSION" != "${{ inputs.version }}" ]; then
-            echo "Error: Input version ${{ inputs.version }} does not match pyproject.toml version $PYPROJECT_VERSION."
+          if [ "$PYPROJECT_VERSION" != "$INPUT_VERSION" ]; then
+            echo "Error: Input version $INPUT_VERSION does not match pyproject.toml version $PYPROJECT_VERSION."
             echo "Please update pyproject.toml before triggering the release."
             exit 1
           fi
-          echo "Version ${{ inputs.version }} matches pyproject.toml. Proceeding."
+          echo "Version $INPUT_VERSION matches pyproject.toml. Proceeding."
 
   checktypes:
     runs-on: ubuntu-latest
@@ -185,13 +190,15 @@ jobs:
 
       - name: Wait for propagation and verify install (dry run)
         if: inputs.dry_run == true
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           echo "Waiting for TestPyPI to propagate..."
           sleep 30
           for i in $(seq 1 10); do
-            echo "Attempt $i: installing cylera-client==${{ inputs.version }} from TestPyPI..."
+            echo "Attempt $i: installing cylera-client==$INPUT_VERSION from TestPyPI..."
             if uv run --refresh \
-              --with cylera-client==${{ inputs.version }} \
+              --with "cylera-client==$INPUT_VERSION" \
               --index https://test.pypi.org/simple/ \
               --index-strategy unsafe-best-match \
               --no-project python -c "import cylera_client; print('ok')"; then
@@ -206,12 +213,14 @@ jobs:
 
       - name: Wait for propagation and verify install
         if: inputs.dry_run == false
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           echo "Waiting for PyPI to propagate..."
           sleep 30
           for i in $(seq 1 10); do
-            echo "Attempt $i: installing cylera-client==${{ inputs.version }}..."
-            if uv run --refresh --with cylera-client==${{ inputs.version }} --no-project python -c "import cylera_client; print('ok')"; then
+            echo "Attempt $i: installing cylera-client==$INPUT_VERSION..."
+            if uv run --refresh --with "cylera-client==$INPUT_VERSION" --no-project python -c "import cylera_client; print('ok')"; then
               echo "Verification successful."
               exit 0
             fi
@@ -223,11 +232,13 @@ jobs:
 
       - name: Create git tag
         if: inputs.dry_run == false
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          git tag -a "v$INPUT_VERSION" -m "Release v$INPUT_VERSION"
+          git push origin "v$INPUT_VERSION"
 
       - name: Generate changelog
         if: inputs.dry_run == false
@@ -235,13 +246,14 @@ jobs:
 
       - name: Create GitHub Release
         if: inputs.dry_run == false
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
+          gh release create "v$INPUT_VERSION" \
+            --title "v$INPUT_VERSION" \
             --notes-file CHANGES.md \
             dist/*
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dry run complete
         if: inputs.dry_run == true
