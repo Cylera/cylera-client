@@ -11,9 +11,9 @@ on:
         type: boolean
         default: true
 
-# Release job needs contents: write to create tags and releases
+# Only the release job needs contents: write - all other jobs use read
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
