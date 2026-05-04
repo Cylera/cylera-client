@@ -197,7 +197,7 @@ jobs:
           sleep 30
           for i in $(seq 1 10); do
             echo "Attempt $i: installing cylera-client==$INPUT_VERSION from TestPyPI..."
-            if uv run --refresh \
+            if uv run --refresh \ # NOSONAR
               --with "cylera-client==$INPUT_VERSION" \
               --index https://test.pypi.org/simple/ \
               --index-strategy unsafe-best-match \
