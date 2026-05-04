@@ -1,12 +1,13 @@
 # Publishing to PyPI
 
-This document describes how to build and publish `cylera-client` to PyPI.
+This document describes how to publish `cylera-client` to PyPI using the automated release workflow.
 
 ## Prerequisites
 
-- [uv](https://github.com/astral-sh/uv) installed
-- PyPI account with access to the `cylera-client` package
-- A PyPI API token (create one at https://pypi.org/manage/account/token/)
+- Write access to the GitHub repository
+- Membership of the `release` environment (required reviewer)
+- Version bumped in `pyproject.toml` and committed to `main`
+- `uv.lock` updated and committed (`uv lock`)
 
 ## Steps
 
@@ -16,76 +17,74 @@ Edit the version in `pyproject.toml`:
 
 ```toml
 [project]
-version = "0.2.0"
+version = "1.2.0"
 ```
 
 Follow [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
-### 2. Run the full test suite
-
-Ensure all checks pass before publishing:
+### 2. Update the lockfile
 
 ```bash
-./test.sh --use-op
+uv lock
 ```
 
-### 3. Build the package
+Commit both files:
 
 ```bash
-uv build
+git add pyproject.toml uv.lock
+git commit -m "chore: bump version to 1.2.0"
+git push
 ```
 
-This produces two artifacts in `dist/`:
+### 3. Dry run (recommended)
 
-- `cylera_client-<version>-py3-none-any.whl` — wheel
-- `cylera_client-<version>.tar.gz` — source distribution
+Before doing a real release, validate the full pipeline against TestPyPI:
+
+1. Go to **Actions → Release → Run workflow**
+2. Enter the version (e.g. `1.2.0`)
+3. Leave **dry_run** checked (default)
+4. Click **Run workflow**
+5. Approve the release environment prompt when it appears
+
+The workflow will:
+- Validate the version against `pyproject.toml` and TestPyPI
+- Run all CI checks (pyright, ruff, shellcheck, bandit, pip-audit, tests)
+- Publish to TestPyPI
+- Verify the package installs and imports correctly from TestPyPI
 
 ### 4. Publish to PyPI
 
-The PyPi API token is required to publish. This secret, with a key "UV_PUBLISH_TOKEN"  is managed in 1Password. 
+Once the dry run passes:
 
-```bash
-op run --environment "$OP_ENVIRONMENT_ID" -- uv publish
-```
+1. Go to **Actions → Release → Run workflow**
+2. Enter the version (e.g. `1.2.0`)
+3. **Uncheck dry_run**
+4. Click **Run workflow**
+5. Approve the release environment prompt when it appears
 
-### 5. Verify the release
+The workflow will:
+- Validate the version against `pyproject.toml` and PyPI
+- Run all CI checks
+- Publish to PyPI
+- Verify the package installs and imports correctly from PyPI
+- Create a `v1.2.0` git tag
+- Auto-generate a changelog from commit history
+- Create a GitHub Release with the changelog and build artifacts attached
 
-Create a throwaway directory and change into the directory. Then to verify:
+## Secrets
 
-```bash
-uv init
-uv add cylera-client
-uv run python -c "import cylera_client; print('ok')"
-```
+| Secret | Location | Purpose |
+|--------|----------|---------|
+| `UV_PUBLISH_TOKEN` | `release` environment | PyPI API token |
+| `TEST_UV_PUBLISH_TOKEN` | `release` environment | TestPyPI API token |
 
-### 6. Commit and push to Github and create release
-
-We need to ensure to keep the releaes in PyPi we create in sync with the releases in Github.
-
-Commit and push the changes for the new release to Github, draft a new release that matches the release version in PyPI. Tag the version as the latest release.
-
-## TestPyPI (optional)
-
-To do a dry run against TestPyPI first:
-
-```bash
-uv publish --publish-url https://test.pypi.org/legacy/ --token pypi-...
-```
-
-Then install from TestPyPI to verify:
-
-```bash
-pip install --index-url https://test.pypi.org/simple/ cylera-client
-```
+Both tokens are scoped to the `release` GitHub environment and are only accessible during release workflow runs.
 
 ## Checklist
 
 - [ ] Version bumped in `pyproject.toml`
-- [ ] `CHANGELOG` / commit history reflects the changes
-- [ ] All tests and quality checks pass (`./test.sh`)
-- [ ] `dist/` artifacts built with `uv build`
-- [ ] Published with `uv publish`
-- [ ] Release verified by installing from PyPI
-- [ ] Commit changes and push to Github for the release
-- [ ] Draft a new release in GitHub that matches the PyPI release - tag the version as the latest version
-
+- [ ] `uv.lock` updated with `uv lock`
+- [ ] Changes committed and pushed to `main`
+- [ ] Dry run passes against TestPyPI
+- [ ] Real release workflow passes
+- [ ] GitHub Release created with correct tag and changelog
