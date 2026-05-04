@@ -187,10 +187,10 @@ jobs:
         if: inputs.dry_run == true
         run: |
           echo "Waiting for TestPyPI to propagate..."
+          sleep 30
           for i in $(seq 1 10); do
-            sleep 15
             echo "Attempt $i: installing cylera-client==${{ inputs.version }} from TestPyPI..."
-            if uv run \
+            if uv run --refresh \
               --with cylera-client==${{ inputs.version }} \
               --index https://test.pypi.org/simple/ \
               --index-strategy unsafe-best-match \
@@ -199,6 +199,7 @@ jobs:
               exit 0
             fi
             echo "Not available yet, retrying..."
+            sleep 15
           done
           echo "Error: Package could not be verified after 10 attempts."
           exit 1
@@ -207,14 +208,15 @@ jobs:
         if: inputs.dry_run == false
         run: |
           echo "Waiting for PyPI to propagate..."
+          sleep 30
           for i in $(seq 1 10); do
-            sleep 15
             echo "Attempt $i: installing cylera-client==${{ inputs.version }}..."
-            if uv run --with cylera-client==${{ inputs.version }} --no-project python -c "import cylera_client; print('ok')"; then
+            if uv run --refresh --with cylera-client==${{ inputs.version }} --no-project python -c "import cylera_client; print('ok')"; then
               echo "Verification successful."
               exit 0
             fi
             echo "Not available yet, retrying..."
+            sleep 15
           done
           echo "Error: Package could not be verified after 10 attempts."
           exit 1
@@ -246,4 +248,3 @@ jobs:
         run: |
           echo "Dry run complete. Package was published to TestPyPI and verified successfully."
           echo "To do a real release, trigger this workflow again with dry_run unchecked."
-
