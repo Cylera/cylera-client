@@ -1,3 +1,5 @@
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Cylera_cylera-client&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Cylera_cylera-client) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Cylera_cylera-client&metric=bugs)](https://sonarcloud.io/summary/new_code?id=Cylera_cylera-client) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=Cylera_cylera-client&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=Cylera_cylera-client) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Cylera_cylera-client&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Cylera_cylera-client) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Cylera_cylera-client&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=Cylera_cylera-client)
+
 # cylera-client 
 
 A Python client for the [Cylera Partner API](https://github.com/Cylera/cylera-partner-api)
