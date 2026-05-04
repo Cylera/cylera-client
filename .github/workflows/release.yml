@@ -190,8 +190,9 @@ jobs:
           for i in $(seq 1 10); do
             sleep 15
             echo "Attempt $i: installing cylera-client==${{ inputs.version }} from TestPyPI..."
-            if uv run --with cylera-client==${{ inputs.version }} \
-              --index-url https://test.pypi.org/simple/ \
+            if uv run \
+              --with cylera-client==${{ inputs.version }} \
+              --index https://test.pypi.org/simple/ \
               --no-project python -c "import cylera_client; print('ok')"; then
               echo "Verification successful."
               exit 0
