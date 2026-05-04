@@ -193,6 +193,7 @@ jobs:
             if uv run \
               --with cylera-client==${{ inputs.version }} \
               --index https://test.pypi.org/simple/ \
+              --index-strategy unsafe-best-match \
               --no-project python -c "import cylera_client; print('ok')"; then
               echo "Verification successful."
               exit 0
