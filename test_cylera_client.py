@@ -339,6 +339,23 @@ class TestGetVulnerabilities(unittest.TestCase):
         )
 
 
+    def test_get_vulnerabilities_exclude_suppressed_devices(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        risk = Risk(client)
+
+        result_excluded = risk.get_vulnerabilities(exclude_suppressed_devices=True)
+        log(json.dumps(result_excluded, indent=2))
+        self.assertIn("vulnerabilities", result_excluded)
+
+        result_included = risk.get_vulnerabilities(exclude_suppressed_devices=False)
+        log(json.dumps(result_included, indent=2))
+        self.assertIn("vulnerabilities", result_included)
+
+
 class TestThreats(unittest.TestCase):
     def test_get_threats(self):
         client = CyleraClient(

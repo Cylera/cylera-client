@@ -638,6 +638,7 @@ class Risk:
         page_size: Optional[int] = None,
         severity: Optional[str] = None,
         status: Optional[str] = None,
+        exclude_suppressed_devices: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Get a list of vulnerabilities.
@@ -655,6 +656,8 @@ class Risk:
                       Enum: "INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"
             status: Vulnerability status.
                     Enum: "OPEN", "IN_PROGRESS", "RESOLVED", "SUPPRESSED"
+            exclude_suppressed_devices: When True, exclude vulnerability
+                                        instances for suppressed devices.
 
         Returns:
             List of vulnerabilities similar to this:
@@ -691,6 +694,7 @@ class Risk:
             "page_size": page_size,
             "severity": severity,
             "status": status,
+            "exclude_suppressed_devices": exclude_suppressed_devices,
         }
         # remove None values
         params = {k: v for k, v in params.items() if v is not None}
