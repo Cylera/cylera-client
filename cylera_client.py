@@ -71,7 +71,8 @@ class CyleraClient:
         self.session.headers.update(
             {
                 # "Content-Type": "application/json",
-                "Accept": "application/json"
+                "Accept": "application/json",
+                "User-Agent": "cylera-client-python",
             }
         )
         self._token = None
