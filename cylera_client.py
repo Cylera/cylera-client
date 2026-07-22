@@ -17,6 +17,21 @@ import os
 from requests.exceptions import RequestException
 
 
+# The WAF in front of the Cylera Partner API (e.g. partner.us1.cylera.com) rejects the
+# default python-requests User-Agent with 403. Send an identifying UA instead.
+try:
+    from importlib.metadata import version, PackageNotFoundError
+
+    try:
+        _CLIENT_VERSION = version("cylera-client")
+    except PackageNotFoundError:
+        _CLIENT_VERSION = "unknown"
+except ImportError:  # pragma: no cover
+    _CLIENT_VERSION = "unknown"
+
+DEFAULT_USER_AGENT = f"cylera-client/{_CLIENT_VERSION}"
+
+
 def print_request_details(response, *args, **kwargs):
     if not os.environ.get("DEBUG"):
         return
@@ -54,7 +69,13 @@ class CyleraAPIError(Exception):
 class CyleraClient:
     """Client for interacting with the Cylera Partner API."""
 
-    def __init__(self, username: str, password: str, base_url: str):
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        base_url: str,
+        user_agent: Optional[str] = None,
+    ):
         """
         Initialize the Cylera API client.
 
@@ -62,6 +83,8 @@ class CyleraClient:
             username: Your Cylera username
             password: Your Cylera password
             base_url: Optional custom base URL for the API
+            user_agent: Optional override for the outbound User-Agent header.
+                Falls back to the CYLERA_USER_AGENT env var, then a default.
         """
         self.username = username
         self.password = password
@@ -71,7 +94,9 @@ class CyleraClient:
         self.session.headers.update(
             {
                 # "Content-Type": "application/json",
-                "Accept": "application/json"
+                "Accept": "application/json",
+                "User-Agent": user_agent
+                or os.environ.get("CYLERA_USER_AGENT", DEFAULT_USER_AGENT),
             }
         )
         self._token = None
