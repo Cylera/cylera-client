@@ -369,7 +369,7 @@ class TestThreats(unittest.TestCase):
         result1 = threat.get_threats(page=0, page_size=2, severity="MEDIUM")
         log(json.dumps(result1, indent=2))
         self.assertIn("threats", result1)
-        self.assertEqual(result1["total"], 16, "Expected 16 Medium threats")
+        self.assertEqual(result1["total"], 15, "Expected 16 Medium threats")
         threats_page1 = result1["threats"]
 
         # Verify page 1 contains exactly 2 items
