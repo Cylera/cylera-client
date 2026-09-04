@@ -143,6 +143,13 @@ check_software_supply_chain_security() {
 }
 
 if [[ "$USE_DOPPLER" = false ]] && [[ "$USE_OP" = false ]]; then
+  # Load .env if present so credentials don't need to be exported separately
+  if [[ -f "$(dirname "$0")/.env" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$(dirname "$0")/.env"
+    set +a
+  fi
   check_environment_variables
 fi
 echo "******** Running pytest **********"
