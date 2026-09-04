@@ -9,7 +9,8 @@ uv sync --group dev
 
 ### Running tests
 
-Tests run against the Cylera demo environment. Set the required environment variables first:
+Tests run against the Cylera demo environment. Set the required environment variables first, either
+by exporting them:
 
 ```bash
 export TEST_CYLERA_USERNAME="you@example.com"
@@ -19,6 +20,20 @@ export TEST_SWITCH_CYLERA_USERNAME="you@example.com"
 export TEST_SWITCH_CYLERA_PASSWORD="your-password"
 export TEST_SWITCH_CYLERA_BASE_URL="https://partner.demo.cylera.com/"
 ```
+
+or by placing them in a `.env` file in the project root:
+
+```bash
+TEST_CYLERA_USERNAME="you@example.com"
+TEST_CYLERA_PASSWORD="your-password"
+TEST_CYLERA_BASE_URL="https://partner.demo.cylera.com/"
+TEST_SWITCH_CYLERA_USERNAME="you@example.com"
+TEST_SWITCH_CYLERA_PASSWORD="your-password"
+TEST_SWITCH_CYLERA_BASE_URL="https://partner.demo.cylera.com/"
+```
+
+`./test.sh` automatically loads `.env` if present (unless `--use-doppler` or `--use-op` is passed), so
+these don't need to be exported separately.
 
 The TEST_SWITCH_* environment variables are required to test the /organization/switch 
 and /organization/reset endpoints. This test account must have at least one organization 
