@@ -249,6 +249,22 @@ class TestGetDevices(unittest.TestCase):
         )
 
 
+class TestGetExcludedDevices(unittest.TestCase):
+    def test_get_excluded_devices(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        inventory = Inventory(client)
+
+        result = inventory.get_excluded_devices(page=0, page_size=2)
+        log(json.dumps(result, indent=2))
+        self.assertIn("devices", result)
+        self.assertIn("total", result)
+        self.assertIn("page", result)
+
+
 class TestGetSubnets(unittest.TestCase):
     def test_get_subnets(self):
         client = CyleraClient(

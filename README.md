@@ -73,6 +73,13 @@ devices = inventory.get_devices(
 
 # Get device attributes
 attrs = inventory.get_device_attributes("7f:14:22:72:00:e5")
+
+# List excluded (unclassified) devices with optional filters
+excluded_devices = inventory.get_excluded_devices(
+    vendor="Philips",
+    page=0,
+    page_size=50,
+)
 ```
 
 ### Utilization
