@@ -39,6 +39,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          cache-suffix: checktypes
       - name: Run pyright
         run: uvx --no-build pyright==1.1.409
 
@@ -51,6 +52,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          cache-suffix: lint
       - name: Run ruff
         run: uvx --no-build ruff==0.15.12 check .
 
@@ -71,6 +73,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          cache-suffix: securitycheck
       - name: Run bandit
         run: uvx --no-build bandit==1.9.4 -c bandit.yaml ./*.py
 
@@ -83,6 +86,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          cache-suffix: pipaudit
       - name: Run pip-audit
         run: uv export --no-hashes | uvx --no-build --python 3.13 pip-audit==2.10.0 -r /dev/stdin
 
@@ -95,6 +99,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          cache-suffix: test
       - name: Set up Python
         run: uv python install
       - name: Install dependencies
