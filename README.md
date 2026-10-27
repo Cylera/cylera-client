@@ -32,9 +32,9 @@ Authentication is handled automatically. Tokens are cached and refreshed before 
 
 #### Using an already-obtained token
 
-If you already have a valid bearer token from elsewhere — for example, an
-integration that authenticates its users via WorkOS and forwards their
-token — construct the client with `token=` instead of `username`/`password`:
+If you already have a valid Cylera token — for example, one an integration
+obtained for its user from the Partner API — construct the client with
+`token=` instead of `username`/`password`:
 
 ```python
 client = CyleraClient(
@@ -64,7 +64,8 @@ available = organization.get_available_organizations()
 # Switch into a different organization
 # (in username/password mode, the token is invalidated after switch and the
 # client re-authenticates automatically on the next call; in token mode the
-# same token keeps working after the switch)
+# same token keeps working, but still acts on the organization it was issued
+# for: get a new token to act in the one you switched into)
 # Note that switch_organization is handled asynchronously
 # So, whenever you switch, it is wise to sleep for a few seconds to give
 # the back-end time to process the reset request.

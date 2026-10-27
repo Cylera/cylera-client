@@ -144,10 +144,9 @@ class CyleraClient:
             username: Your Cylera username (mutually exclusive with token)
             password: Your Cylera password (mutually exclusive with token)
             base_url: Base URL for the API (always required)
-            token: An already-obtained bearer token, e.g. from an
-                   integration that authenticates its users elsewhere and
-                   forwards their token (mutually exclusive with
-                   username/password)
+            token: An already-obtained Cylera token, e.g. one an
+                   integration obtained for its user from the Partner API
+                   (mutually exclusive with username/password)
 
         Raises:
             ValueError: If both token and password are given, if neither
