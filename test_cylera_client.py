@@ -10,7 +10,16 @@ import time
 import unittest
 import json
 import sys
-from cylera_client import CyleraClient, Organization, Inventory, Utilization, Network, Risk, Threat
+from cylera_client import (
+    CyleraAPIError,
+    CyleraClient,
+    Organization,
+    Inventory,
+    Utilization,
+    Network,
+    Risk,
+    Threat,
+)
 
 # Check if verbose flag is present
 VERBOSE = "-v" in sys.argv or "--verbose" in sys.argv
@@ -97,6 +106,124 @@ class TestSwitchOrganization(unittest.TestCase):
         time.sleep(15)  # reset is processed asynchronously
         current_org2 = organization.get_organization()
         self.assertEqual(current_org,current_org2)
+
+
+class TestTokenModeConstructorValidation(unittest.TestCase):
+    """No network required — pure input validation."""
+
+    def test_token_and_password_together_raises(self):
+        with self.assertRaises(ValueError):
+            CyleraClient(
+                username="someone@example.com",
+                password="irrelevant",  # nosec B106 - placeholder, not a real credential
+                base_url="https://partner.demo.cylera.com/",
+                token="irrelevant-token",  # nosec B106 - placeholder, not a real credential
+            )
+
+    def test_neither_token_nor_password_raises(self):
+        with self.assertRaises(ValueError):
+            CyleraClient(base_url="https://partner.demo.cylera.com/")
+
+    def test_missing_base_url_raises(self):
+        with self.assertRaises(ValueError):
+            CyleraClient(token="irrelevant-token")  # nosec B106 - placeholder, not a real credential
+
+    def test_token_only_constructs_without_error(self):
+        client = CyleraClient(
+            token="irrelevant-token",  # nosec B106 - placeholder, not a real credential
+            base_url="https://partner.demo.cylera.com/",
+        )
+        self.assertEqual(client._token, "irrelevant-token")
+        self.assertTrue(client._token_mode)
+        self.assertEqual(
+            client.session.headers["Authorization"], "Bearer irrelevant-token"
+        )
+
+
+class TestTokenModeGetOrganization(unittest.TestCase):
+    def test_token_mode_client_fetches_organization_with_a_real_token(self):
+        # Get a real token the normal way first, then hand it to a second,
+        # independent client constructed with token= only — no
+        # username/password anywhere on the second client, proving the
+        # request plumbing works end to end without ever calling
+        # /auth/login_user itself.
+        client = CyleraClient(
+            username=get_env_var("TEST_CYLERA_USERNAME"),
+            password=get_env_var("TEST_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        client._authenticate()
+        real_token = client._token
+        self.assertIsNotNone(real_token)
+
+        token_client = CyleraClient(
+            token=real_token, base_url=get_env_var("TEST_CYLERA_BASE_URL")
+        )
+        organization = Organization(token_client)
+        result = organization.get_organization()
+
+        log(json.dumps(result, indent=2))
+        self.assertIn("name", result)
+
+    def test_invalid_token_surfaces_as_401_without_attempting_login(self):
+        # In token mode there's no username/password to fall back on — an
+        # invalid token must surface as a 401 CyleraAPIError, not attempt
+        # to (impossibly) re-authenticate.
+        token_client = CyleraClient(
+            token="not-a-real-token",  # nosec B106 - placeholder, not a real credential
+            base_url=get_env_var("TEST_CYLERA_BASE_URL"),
+        )
+        organization = Organization(token_client)
+        with self.assertRaises(CyleraAPIError) as ctx:
+            organization.get_organization()
+        self.assertEqual(ctx.exception.status_code, 401)
+
+
+class TestTokenModeSwitchOrganization(unittest.TestCase):
+    def test_switch_and_reset_organization_keep_the_same_token(self):
+        client = CyleraClient(
+            username=get_env_var("TEST_SWITCH_CYLERA_USERNAME"),
+            password=get_env_var("TEST_SWITCH_CYLERA_PASSWORD"),
+            base_url=get_env_var("TEST_SWITCH_CYLERA_BASE_URL"),
+        )
+        client._authenticate()
+        real_token = client._token
+        self.assertIsNotNone(real_token)
+
+        token_client = CyleraClient(
+            token=real_token, base_url=get_env_var("TEST_SWITCH_CYLERA_BASE_URL")
+        )
+        organization = Organization(token_client)
+
+        current_org = organization.get_organization()
+        available = organization.get_available_organizations()
+        other_orgs = [o for o in available if o["name"] != current_org["name"]]
+        if not other_orgs:
+            self.skipTest("No other organizations available to switch into")
+
+        target = other_orgs[0]
+        try:
+            result = organization.switch_organization(target["id"])
+            log(json.dumps(result, indent=2))
+            time.sleep(15)  # switch is processed asynchronously
+
+            # Unlike username/password mode (see TestSwitchOrganization above),
+            # the token is NOT cleared in token mode.
+            self.assertEqual(token_client._token, real_token)
+
+            new_org = organization.get_organization()
+            self.assertEqual(new_org["name"], target["name"])
+        finally:
+            # Always reset, even on assertion failure — this account is
+            # shared with TestSwitchOrganization above, and a switch left
+            # uncleared would leave it stuck for the next run.
+            result = organization.reset_organization()
+            log(json.dumps(result, indent=2))
+            time.sleep(15)  # reset is processed asynchronously
+
+        self.assertEqual(token_client._token, real_token)
+        current_org2 = organization.get_organization()
+        self.assertEqual(current_org, current_org2)
 
 
 class TestGetDevice(unittest.TestCase):

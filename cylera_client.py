@@ -51,18 +51,114 @@ class CyleraAPIError(Exception):
         super().__init__(self.message)
 
 
+class _AuthStrategy:
+    """
+    Internal — how a CyleraClient obtains and manages its bearer token.
+    Not part of the public API; CyleraClient picks one based on whether
+    it was constructed with username/password or token.
+
+    Adding a new auth mode (e.g. an OAuth2 flow, or a scoped API key)
+    means adding one of these plus a branch in CyleraClient.__init__ —
+    not touching _make_request/Organization.switch_organization/etc.
+    """
+
+    def authenticate(self, client: "CyleraClient") -> None:
+        raise NotImplementedError
+
+    def should_retry_unauthorized(self) -> bool:
+        """Whether _make_request should retry once on a 401 after
+        forcing re-authentication. False when there's nothing to
+        re-authenticate with (e.g. a bare token)."""
+        return False
+
+    def invalidate_after_organization_change(self, client: "CyleraClient") -> None:
+        """Called after switch_organization()/reset_organization(). Only
+        username/password mode needs to clear the cached token here;
+        an externally-supplied token keeps working across the switch."""
+
+
+class _PasswordAuth(_AuthStrategy):
+    def authenticate(self, client: "CyleraClient") -> None:
+        if client._is_token_valid():
+            return
+
+        try:
+            response = client.session.post(
+                urljoin(client.base_url, "auth/login_user"),
+                json={"email": client.username, "password": client.password},
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if "token" not in data:
+                raise CyleraAuthError("No token received in authentication response")
+
+            client._store_token(data["token"])
+
+        except requests.exceptions.HTTPError as e:
+            raise CyleraAuthError(f"Authentication failed: {str(e)}")
+        except RequestException as e:
+            raise CyleraAuthError(f"Authentication request failed: {str(e)}")
+
+    def should_retry_unauthorized(self) -> bool:
+        return True
+
+    def invalidate_after_organization_change(self, client: "CyleraClient") -> None:
+        # Token is invalidated server-side; clear it so the next request
+        # re-authenticates.
+        client._token = None
+        client._token_expiry = None
+
+
+class _TokenAuth(_AuthStrategy):
+    def authenticate(self, client: "CyleraClient") -> None:
+        return  # The token was already provided; never call /auth/login_user.
+
+    # should_retry_unauthorized and invalidate_after_organization_change
+    # both keep the base class's defaults: no username/password to
+    # re-authenticate with, and the same externally-supplied token keeps
+    # working across an organization switch/reset.
+
+
 class CyleraClient:
     """Client for interacting with the Cylera Partner API."""
 
-    def __init__(self, username: str, password: str, base_url: str):
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        base_url: Optional[str] = None,
+        *,
+        token: Optional[str] = None,
+    ):
         """
         Initialize the Cylera API client.
 
+        Provide either username/password (the client authenticates itself
+        against /auth/login_user and re-authenticates automatically before
+        expiry or on a 401) or an already-obtained bearer token (the
+        client trusts it as-is, never calls /auth/login_user, and never
+        attempts to re-authenticate) — never both.
+
         Args:
-            username: Your Cylera username
-            password: Your Cylera password
-            base_url: Optional custom base URL for the API
+            username: Your Cylera username (mutually exclusive with token)
+            password: Your Cylera password (mutually exclusive with token)
+            base_url: Base URL for the API (always required)
+            token: An already-obtained Cylera token, e.g. one an
+                   integration obtained for its user from the Partner API
+                   (mutually exclusive with username/password)
+
+        Raises:
+            ValueError: If both token and password are given, if neither
+                is given, or if base_url is missing
         """
+        if token is not None and password is not None:
+            raise ValueError("Pass either username/password or token, not both")
+        if token is None and password is None:
+            raise ValueError("Pass either username/password or token")
+        if not base_url:
+            raise ValueError("base_url is required")
+
         self.username = username
         self.password = password
         self.base_url = base_url
@@ -75,8 +171,26 @@ class CyleraClient:
                 "User-Agent": "cylera-client-python",
             }
         )
-        self._token = None
+        self._token_mode = token is not None
+        self._auth: _AuthStrategy = _TokenAuth() if self._token_mode else _PasswordAuth()
+        self._token = token
         self._token_expiry = None
+        if self._token_mode:
+            self.session.headers.update({"Authorization": f"Bearer {token}"})
+
+    @classmethod
+    def with_password(cls, username: str, password: str, base_url: str) -> "CyleraClient":
+        """Equivalent to CyleraClient(username=..., password=..., base_url=...) —
+        an explicit, self-documenting alternative for callers who'd rather
+        not rely on which keyword-combination implies which mode."""
+        return cls(username=username, password=password, base_url=base_url)
+
+    @classmethod
+    def with_token(cls, token: str, base_url: str) -> "CyleraClient":
+        """Equivalent to CyleraClient(token=..., base_url=...) — an explicit,
+        self-documenting alternative for callers who'd rather not rely on
+        which keyword-combination implies which mode."""
+        return cls(token=token, base_url=base_url)
 
     def _is_token_valid(self) -> bool:
         """Check if the current token is valid and not expired."""
@@ -93,31 +207,15 @@ class CyleraClient:
 
     def _authenticate(self) -> None:
         """
-        Authenticate with the Cylera API and get a session token.
+        Ensure this client has a valid token, per its auth strategy
+        (username/password: authenticate if needed; token: no-op, since
+        the token was already provided at construction time and this
+        client never calls /auth/login_user).
 
         Raises:
             CyleraAuthError: If authentication fails
         """
-        if self._is_token_valid():
-            return
-
-        try:
-            response = self.session.post(
-                urljoin(self.base_url, "auth/login_user"),
-                json={"email": self.username, "password": self.password},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if "token" not in data:
-                raise CyleraAuthError("No token received in authentication response")
-
-            self._store_token(data["token"])
-
-        except requests.exceptions.HTTPError as e:
-            raise CyleraAuthError(f"Authentication failed: {str(e)}")
-        except RequestException as e:
-            raise CyleraAuthError(f"Authentication request failed: {str(e)}")
+        self._auth.authenticate(self)
 
     def test_authenticate(self) -> Dict[str, Any]:
         """
@@ -207,8 +305,11 @@ class CyleraClient:
                 **kwargs,
             )
 
-            # If we get a 401, try to re-authenticate once
-            if response.status_code == 401:
+            # If we get a 401, try to re-authenticate once — except when
+            # the auth strategy has nothing to re-authenticate with (e.g.
+            # a bare token), where an invalid/expired credential just
+            # surfaces as a 401 CyleraAPIError below.
+            if response.status_code == 401 and self._auth.should_retry_unauthorized():
                 self._token = None  # Force re-authentication
                 self._authenticate()
                 response = self.session.request(
@@ -281,9 +382,7 @@ class Organization:
         result = self.client._make_request(
             "POST", "/organization/switch", params={"id": organization_id}
         )
-        # Token is invalidated server-side; clear it so next request re-authenticates
-        self.client._token = None
-        self.client._token_expiry = None
+        self.client._auth.invalidate_after_organization_change(self.client)
         return result
 
     def reset_organization(self) -> Dict[str, Any]:
@@ -301,8 +400,7 @@ class Organization:
             Response data confirming the reset
         """
         result = self.client._make_request("POST", "/organization/reset")
-        self.client._token = None
-        self.client._token_expiry = None
+        self.client._auth.invalidate_after_organization_change(self.client)
         return result
 
 
