@@ -10,10 +10,14 @@ import time
 import unittest
 import json
 import sys
+from unittest.mock import MagicMock, patch
 from cylera_client import (
     CyleraAPIError,
+    CyleraAuthError,
     CyleraClient,
+    CyleraExchangeError,
     Organization,
+    exchange_workos_token,
     Inventory,
     Utilization,
     Network,
@@ -224,6 +228,158 @@ class TestTokenModeSwitchOrganization(unittest.TestCase):
         self.assertEqual(token_client._token, real_token)
         current_org2 = organization.get_organization()
         self.assertEqual(current_org, current_org2)
+
+
+def _password_token(prefix: str = "TEST") -> str:
+    """A real Cylera token from a password sign-in, standing in for one a
+    token exchange would return."""
+    client = CyleraClient(
+        username=get_env_var(f"{prefix}_CYLERA_USERNAME"),
+        password=get_env_var(f"{prefix}_CYLERA_PASSWORD"),
+        base_url=get_env_var(f"{prefix}_CYLERA_BASE_URL"),
+    )
+    client._authenticate()
+    if client._token is None:
+        raise CyleraAuthError("No token from the password sign-in")
+    return client._token
+
+
+class TestTokenProviderConstructorValidation(unittest.TestCase):
+    """No network required — pure input validation."""
+
+    def test_token_provider_with_password_raises(self):
+        with self.assertRaises(ValueError):
+            CyleraClient(
+                username="someone@example.com",
+                password="irrelevant",  # nosec B106 - placeholder, not a real credential
+                base_url="https://partner.demo.cylera.com/",
+                token_provider=lambda: "irrelevant-token",
+            )
+
+    def test_token_provider_with_token_raises(self):
+        with self.assertRaises(ValueError):
+            CyleraClient(
+                token="irrelevant-token",  # nosec B106 - placeholder, not a real credential
+                token_provider=lambda: "irrelevant-token",
+                base_url="https://partner.demo.cylera.com/",
+            )
+
+    def test_token_provider_isnt_called_until_the_first_request(self):
+        provider = MagicMock(return_value="irrelevant-token")
+        client = CyleraClient.with_token_provider(provider, "https://partner.demo.cylera.com/")
+        provider.assert_not_called()
+        self.assertIsNone(client._token)
+
+
+class TestTokenProviderMode(unittest.TestCase):
+    def test_the_token_is_fetched_once_and_reused(self):
+        provider = MagicMock(return_value=_password_token())
+        organization = Organization(
+            CyleraClient(token_provider=provider, base_url=get_env_var("TEST_CYLERA_BASE_URL"))
+        )
+
+        organization.get_organization()
+        result = organization.get_organization()
+
+        log(json.dumps(result, indent=2))
+        self.assertIn("name", result)
+        provider.assert_called_once()
+
+    def test_a_401_fetches_a_new_token_and_retries(self):
+        # An expired token looks the same to the client as this one.
+        provider = MagicMock(side_effect=["not-a-real-token", _password_token()])
+        organization = Organization(
+            CyleraClient(token_provider=provider, base_url=get_env_var("TEST_CYLERA_BASE_URL"))
+        )
+
+        result = organization.get_organization()
+
+        self.assertIn("name", result)
+        self.assertEqual(provider.call_count, 2)
+
+    def test_a_provider_that_keeps_failing_surfaces_as_a_401(self):
+        provider = MagicMock(return_value="not-a-real-token")
+        organization = Organization(
+            CyleraClient(token_provider=provider, base_url=get_env_var("TEST_CYLERA_BASE_URL"))
+        )
+
+        with self.assertRaises(CyleraAPIError) as ctx:
+            organization.get_organization()
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(provider.call_count, 2)
+
+
+class TestTokenProviderSwitchOrganization(unittest.TestCase):
+    def test_a_switch_fetches_a_new_token(self):
+        # A token from before a switch keeps acting on the old
+        # organization, so the client asks for a new one, as an
+        # integration exchanging a WorkOS token would.
+        provider = MagicMock(side_effect=lambda: _password_token("TEST_SWITCH"))
+        client = CyleraClient(token_provider=provider, base_url=get_env_var("TEST_SWITCH_CYLERA_BASE_URL"))
+        organization = Organization(client)
+
+        current_org = organization.get_organization()
+        available = organization.get_available_organizations()
+        other_orgs = [o for o in available if o["name"] != current_org["name"]]
+        if not other_orgs:
+            self.skipTest("No other organizations available to switch into")
+
+        target = other_orgs[0]
+        try:
+            organization.switch_organization(target["id"])
+            self.assertIsNone(client._token)
+            time.sleep(15)  # switch is processed asynchronously
+            self.assertEqual(organization.get_organization()["name"], target["name"])
+            self.assertEqual(provider.call_count, 2)
+        finally:
+            # Always reset: the account is shared with the other switch tests.
+            organization.reset_organization()
+            time.sleep(15)  # reset is processed asynchronously
+
+        self.assertEqual(organization.get_organization(), current_org)
+
+
+def _exchange_response(status_code: int, body: dict) -> MagicMock:
+    response = MagicMock(status_code=status_code, ok=status_code < 400)
+    response.json.return_value = body
+    return response
+
+
+class TestExchangeWorkosToken(unittest.TestCase):
+    """No network required: the demo system has no token exchange yet, so
+    the Partner API's answers are mocked."""
+
+    BASE_URL = "https://partner.demo.cylera.com/"
+
+    def _exchange(self, status_code: int, body: dict):
+        with patch("cylera_client.requests.post", return_value=_exchange_response(status_code, body)) as post:
+            return exchange_workos_token(self.BASE_URL, "workos-token"), post
+
+    def test_returns_the_cylera_token(self):
+        token, post = self._exchange(200, {"token": "cylera-token", "user_role": "user"})  # nosec B105 - placeholder, not a real credential
+
+        self.assertEqual(token, "cylera-token")
+        self.assertEqual(post.call_args.args[0], "https://partner.demo.cylera.com/auth/token_exchange")
+        self.assertEqual(post.call_args.kwargs["json"], {"token": "workos-token"})  # nosec B105 - placeholder, not a real credential
+
+    def test_a_refused_token_raises_with_401(self):
+        with self.assertRaises(CyleraExchangeError) as ctx:
+            self._exchange(401, {"message": "Unauthorized Access"})
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_no_token_exchange_raises_with_404(self):
+        with self.assertRaises(CyleraExchangeError) as ctx:
+            self._exchange(404, {})
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_another_failure_raises_an_auth_error(self):
+        with self.assertRaises(CyleraAuthError) as ctx:
+            self._exchange(500, {})
+        self.assertNotIsInstance(ctx.exception, CyleraExchangeError)
+
+    def test_a_response_without_a_token_raises_an_auth_error(self):
+        with self.assertRaises(CyleraAuthError):
+            self._exchange(200, {})
 
 
 class TestGetDevice(unittest.TestCase):
