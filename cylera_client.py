@@ -7,7 +7,7 @@ API https://partner.us1.cylera.com/apidocs/
 Turn on debugging by setting the environment variable DEBUG=1
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urljoin
 from datetime import datetime, timedelta
 from sys import stderr
@@ -36,6 +36,19 @@ class CyleraAuthError(Exception):
     pass
 
 
+class CyleraExchangeError(CyleraAuthError):
+    """The Partner API refused a token exchange, or doesn't support it.
+
+    status_code is 401 when it refused the token (no linked, enabled
+    Cylera account for it, or not a token issued for Cylera), and 404
+    when the Partner API has no token exchange yet.
+    """
+
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        self.status_code = status_code
+        super().__init__(message)
+
+
 class CyleraAPIError(Exception):
     """Base exception for Cylera API errors."""
 
@@ -55,7 +68,7 @@ class _AuthStrategy:
     """
     Internal — how a CyleraClient obtains and manages its bearer token.
     Not part of the public API; CyleraClient picks one based on whether
-    it was constructed with username/password or token.
+    it was constructed with username/password, token or token_provider.
 
     Adding a new auth mode (e.g. an OAuth2 flow, or a scoped API key)
     means adding one of these plus a branch in CyleraClient.__init__ —
@@ -72,9 +85,10 @@ class _AuthStrategy:
         return False
 
     def invalidate_after_organization_change(self, client: "CyleraClient") -> None:
-        """Called after switch_organization()/reset_organization(). Only
-        username/password mode needs to clear the cached token here;
-        an externally-supplied token keeps working across the switch."""
+        """Called after switch_organization()/reset_organization(). The
+        modes that can get a new token (username/password, token_provider)
+        clear it here; an externally-supplied token is kept, though it
+        keeps acting on the organization it was issued for."""
 
 
 class _PasswordAuth(_AuthStrategy):
@@ -120,6 +134,67 @@ class _TokenAuth(_AuthStrategy):
     # working across an organization switch/reset.
 
 
+class _TokenProviderAuth(_AuthStrategy):
+    """Calls a function for a token whenever the client has none: at the
+    first request, after a 401 (the token expired), and after an
+    organization switch or reset (a token from before one keeps acting
+    on the old organization)."""
+
+    def __init__(self, token_provider: Callable[[], str]):
+        self.token_provider = token_provider
+
+    def authenticate(self, client: "CyleraClient") -> None:
+        if client._token is None:
+            client._store_token(self.token_provider())
+
+    def should_retry_unauthorized(self) -> bool:
+        return True
+
+    def invalidate_after_organization_change(self, client: "CyleraClient") -> None:
+        client._token = None
+        client._token_expiry = None
+
+
+def exchange_workos_token(base_url: str, workos_token: str, timeout: float = 30) -> str:
+    """
+    Exchange a WorkOS access token for a Cylera token at the Partner API's
+    POST /auth/token_exchange, for an integration that signs its users in
+    through WorkOS: the Cylera CLI, or the Remote Cylera MCP Server. The
+    WorkOS token itself is never sent to any other route.
+
+    The Cylera token expires with the WorkOS token, so pass a function
+    that exchanges the current WorkOS token as token_provider, and the
+    client exchanges again whenever it needs to:
+
+        CyleraClient(token_provider=lambda: exchange_workos_token(url, current_workos_token()),
+                     base_url=url)
+
+    Raises:
+        CyleraExchangeError: If the Partner API refuses the token (401) or
+            has no token exchange (404)
+        CyleraAuthError: If the exchange fails any other way
+    """
+    try:
+        response = requests.post(
+            urljoin(base_url, "auth/token_exchange"),
+            json={"token": workos_token},
+            headers={"Accept": "application/json", "User-Agent": "cylera-client-python"},
+            timeout=timeout,
+        )
+    except RequestException as e:
+        raise CyleraAuthError(f"Token exchange request failed: {str(e)}")
+    if response.status_code == 404:
+        raise CyleraExchangeError("This Cylera API doesn't support the token exchange yet", 404)
+    if response.status_code == 401:
+        raise CyleraExchangeError("Cylera refused the WorkOS token", 401)
+    if not response.ok:
+        raise CyleraAuthError(f"Token exchange failed: HTTP {response.status_code}")
+    token = response.json().get("token")
+    if not token:
+        raise CyleraAuthError("No token received in token exchange response")
+    return token
+
+
 class CyleraClient:
     """Client for interacting with the Cylera Partner API."""
 
@@ -130,15 +205,22 @@ class CyleraClient:
         base_url: Optional[str] = None,
         *,
         token: Optional[str] = None,
+        token_provider: Optional[Callable[[], str]] = None,
     ):
         """
         Initialize the Cylera API client.
 
-        Provide either username/password (the client authenticates itself
-        against /auth/login_user and re-authenticates automatically before
-        expiry or on a 401) or an already-obtained bearer token (the
-        client trusts it as-is, never calls /auth/login_user, and never
-        attempts to re-authenticate) — never both.
+        Provide exactly one of:
+          - username/password: the client authenticates itself against
+            /auth/login_user and re-authenticates automatically before
+            expiry or on a 401.
+          - token: an already-obtained bearer token, which the client
+            trusts as-is, never calling /auth/login_user or attempting to
+            re-authenticate.
+          - token_provider: a function returning a token, which the client
+            calls at the first request, again after a 401, and after an
+            organization switch or reset — for a token that expires
+            quickly, such as one from exchange_workos_token().
 
         Args:
             username: Your Cylera username (mutually exclusive with token)
@@ -147,15 +229,20 @@ class CyleraClient:
             token: An already-obtained Cylera token, e.g. one an
                    integration obtained for its user from the Partner API
                    (mutually exclusive with username/password)
+            token_provider: A function returning a Cylera token (mutually
+                   exclusive with username/password and token)
 
         Raises:
-            ValueError: If both token and password are given, if neither
-                is given, or if base_url is missing
+            ValueError: If more than one of password, token and
+                token_provider is given, if none is, or if base_url is
+                missing
         """
+        if token_provider is not None and (token is not None or password is not None):
+            raise ValueError("Pass only one of username/password, token or token_provider")
         if token is not None and password is not None:
             raise ValueError("Pass either username/password or token, not both")
-        if token is None and password is None:
-            raise ValueError("Pass either username/password or token")
+        if token is None and password is None and token_provider is None:
+            raise ValueError("Pass either username/password, token or token_provider")
         if not base_url:
             raise ValueError("base_url is required")
 
@@ -172,7 +259,13 @@ class CyleraClient:
             }
         )
         self._token_mode = token is not None
-        self._auth: _AuthStrategy = _TokenAuth() if self._token_mode else _PasswordAuth()
+        self._auth: _AuthStrategy
+        if token_provider is not None:
+            self._auth = _TokenProviderAuth(token_provider)
+        elif self._token_mode:
+            self._auth = _TokenAuth()
+        else:
+            self._auth = _PasswordAuth()
         self._token = token
         self._token_expiry = None
         if self._token_mode:
@@ -192,6 +285,11 @@ class CyleraClient:
         which keyword-combination implies which mode."""
         return cls(token=token, base_url=base_url)
 
+    @classmethod
+    def with_token_provider(cls, token_provider: Callable[[], str], base_url: str) -> "CyleraClient":
+        """Equivalent to CyleraClient(token_provider=..., base_url=...)."""
+        return cls(token_provider=token_provider, base_url=base_url)
+
     def _is_token_valid(self) -> bool:
         """Check if the current token is valid and not expired."""
         return bool(
@@ -210,7 +308,8 @@ class CyleraClient:
         Ensure this client has a valid token, per its auth strategy
         (username/password: authenticate if needed; token: no-op, since
         the token was already provided at construction time and this
-        client never calls /auth/login_user).
+        client never calls /auth/login_user; token_provider: call it if
+        the client has no token).
 
         Raises:
             CyleraAuthError: If authentication fails

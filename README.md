@@ -46,8 +46,35 @@ client = CyleraClient(
 In this mode the client never calls `/auth/login_user` and never attempts
 to re-authenticate itself — it trusts the token as-is until the API
 rejects it with a 401, which is raised to you as a `CyleraAPIError` rather
-than retried. `username`/`password` and `token` are mutually exclusive;
-passing both (or neither) raises a `ValueError`.
+than retried. `username`/`password`, `token` and `token_provider` (below)
+are mutually exclusive; passing more than one (or none) raises a
+`ValueError`.
+
+#### Signing in through WorkOS
+
+An integration that signs its users in through WorkOS, such as the Cylera
+CLI or the Remote Cylera MCP Server, never sends the WorkOS token to the
+Partner API's other routes. It exchanges it for a Cylera token with
+`exchange_workos_token()`. The Cylera token expires with the WorkOS token,
+within minutes, so pass a function that exchanges the current WorkOS
+token as `token_provider=`:
+
+```python
+from cylera_client import CyleraClient, exchange_workos_token
+
+base_url = "https://partner.us1.cylera.com/"
+client = CyleraClient(
+    token_provider=lambda: exchange_workos_token(base_url, current_workos_token()),
+    base_url=base_url,
+)
+```
+
+The client calls it at the first request, again after a 401 (the token
+expired), and after `switch_organization()` or `reset_organization()`,
+since a token from before a switch keeps acting on the old organization.
+`exchange_workos_token()` raises `CyleraExchangeError` when the Partner API
+refuses the WorkOS token (`status_code` 401) or has no token exchange
+(`status_code` 404).
 
 ### Organization
 
@@ -62,10 +89,10 @@ org = organization.get_organization()
 available = organization.get_available_organizations()
 
 # Switch into a different organization
-# (in username/password mode, the token is invalidated after switch and the
-# client re-authenticates automatically on the next call; in token mode the
-# same token keeps working, but still acts on the organization it was issued
-# for: get a new token to act in the one you switched into)
+# (in username/password and token_provider modes, the token is invalidated
+# after switch and the client gets a new one on the next call; in token mode
+# the same token keeps working, but still acts on the organization it was
+# issued for: get a new token to act in the one you switched into)
 # Note that switch_organization is handled asynchronously
 # So, whenever you switch, it is wise to sleep for a few seconds to give
 # the back-end time to process the reset request.
